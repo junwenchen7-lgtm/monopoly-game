@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>隱娘傳奇大富翁 - 獨立版</title>
+    
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 React 和 ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- 引入 Babel 用於解析 JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700;900&display=swap');
+        
+        body {
+            font-family: 'Noto Serif TC', serif;
+            background-color: #1a0f0a;
+        }
+
+        @keyframes pop {
+          0% { transform: scale(0.8); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes tilePop {
+          0% { transform: translateZ(-100px); opacity: 0; }
+          100% { transform: translateZ(0); opacity: 1; }
+        }
+        .animate-pop { animation: pop 0.3s ease-out forwards; }
+        .tile-pop { animation: tilePop 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards; opacity: 0; }
+        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4a2c1d; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- 圖標元件 (內嵌 SVG 以確保獨立運行) ---
+        const IconWrapper = ({ children, className, color }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={{color}}>
+                {children}
+            </svg>
+        );
+
+        const Icons = {
+            Home: (props) => <IconWrapper {...props}><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></IconWrapper>,
+            Scroll: (props) => <IconWrapper {...props}><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-2-3-2-3s-2 2.1-2 3v3c0 .6.4 1 1 1z"/><path d="M14 17h2c.6 0 1-.4 1-1v-3c0-.9-2-3-2-3s-2 2.1-2 3v3c0 .6.4 1 1 1z"/><path d="M9 17h2c.6 0 1-.4 1-1v-3c0-.9-2-3-2-3s-2 2.1-2 3v3c0 .6.4 1 1 1z"/><path d="M8 21h12a2 2 0 0 0 2-2v-2H8a2 2 0 0 0-2 2v2z"/><path d="M8 3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/></IconWrapper>,
+            AlertCircle: (props) => <IconWrapper {...props}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></IconWrapper>,
+            Sword: (props) => <IconWrapper {...props}><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/></IconWrapper>,
+            Skull: (props) => <IconWrapper {...props}><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><path d="M8 20v2h8v-2"/><path d="m12.5 17-.5-1-.5 1h1z"/><path d="M16 20a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20"/></IconWrapper>,
+            Map: (props) => <IconWrapper {...props}><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></IconWrapper>,
+            Coins: (props) => <IconWrapper {...props}><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m7.1 13.8 3-5.5"/></IconWrapper>,
+            User: (props) => <IconWrapper {...props}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></IconWrapper>,
+            Volume2: (props) => <IconWrapper {...props}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></IconWrapper>,
+            VolumeX: (props) => <IconWrapper {...props}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></IconWrapper>
+        };
+
+        // --- 配置與資料：與聶隱娘傳奇深度結合 ---
+        const BOARD_SIZE = 15;
+        const TILE_DATA = [
+          { id: 0, name: "長安皇城", type: "START", iconType: "Home" },
+          { id: 1, name: "魏博節度使府", type: "PROPERTY", price: 180, rent: 40 },
+          { id: 2, name: "嘉信公主琴房", type: "PROPERTY", price: 200, rent: 50 },
+          { id: 3, name: "密令：紙人術", type: "CHANCE", iconType: "Scroll" },
+          { id: 4, name: "節度使後花園", type: "PROPERTY", price: 240, rent: 60 },
+          { id: 5, name: "道姑山門(禁錮)", type: "JAIL", iconType: "AlertCircle" },
+          { id: 6, name: "幽州軍營", type: "PROPERTY", price: 280, rent: 75 },
+          { id: 7, name: "刺客伏擊", type: "TAX", iconType: "Sword" },
+          { id: 8, name: "羊角匕首鋪", type: "PROPERTY", price: 320, rent: 90 },
+          { id: 9, name: "密令：隱身術", type: "CHANCE", iconType: "Scroll" },
+          { id: 10, name: "磨鏡少年居所", type: "FREE", iconType: "Map" },
+          { id: 11, name: "田季安內室", type: "PROPERTY", price: 400, rent: 120 },
+          { id: 12, name: "空空兒暗影", type: "PROPERTY", price: 450, rent: 150 },
+          { id: 13, name: "走火入魔(送醫)", type: "GO_TO_JAIL", iconType: "Skull" },
+          { id: 14, name: "精精兒密室", type: "PROPERTY", price: 500, rent: 200 },
+        ];
+
+        // --- 增強型音效與配樂系統 ---
+        const audioSystem = {
+          ctx: null,
+          bgmNode: null,
+          init() {
+            if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+          },
+          playBGM() {
+            this.init();
+            if (this.bgmNode) return;
+            
+            const tempo = 100;
+            const secondsPerBeat = 60 / tempo;
+            const melody = [220, 220, 293, 220, 329, 349, 329, 293]; 
+            
+            const masterGain = this.ctx.createGain();
+            masterGain.gain.value = 0.15;
+            masterGain.connect(this.ctx.destination);
+            
+            this.bgmNode = { stop: () => { masterGain.disconnect(); this.bgmNode = null; } };
+
+            let nextTime = this.ctx.currentTime;
+            const playNote = (index) => {
+              if (!this.bgmNode) return;
+              const osc = this.ctx.createOscillator();
+              const g = this.ctx.createGain();
+              osc.type = 'sawtooth';
+              osc.frequency.setValueAtTime(melody[index % melody.length], nextTime);
+              g.gain.setValueAtTime(0.2, nextTime);
+              g.gain.exponentialRampToValueAtTime(0.001, nextTime + secondsPerBeat * 1.5);
+              osc.connect(g);
+              g.connect(masterGain);
+              osc.start(nextTime);
+              osc.stop(nextTime + secondsPerBeat * 1.5);
+              nextTime += secondsPerBeat;
+              setTimeout(() => playNote(index + 1), secondsPerBeat * 1000);
+            };
+            playNote(0);
+          },
+          stopBGM() {
+            if (this.bgmNode) this.bgmNode.stop();
+          },
+          playSound(type) {
+            if (!this.ctx) this.init();
+            const osc = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            osc.connect(g);
+            g.connect(this.ctx.destination);
+            
+            if (type === 'dice') {
+              osc.type = 'square';
+              osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+              osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.1);
+              g.gain.setValueAtTime(0.1, this.ctx.currentTime);
+              g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+            } else if (type === 'coin') {
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(880, this.ctx.currentTime);
+              osc.frequency.exponentialRampToValueAtTime(1200, this.ctx.currentTime + 0.1);
+              g.gain.setValueAtTime(0.2, this.ctx.currentTime);
+              g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+            }
+            osc.start();
+            osc.stop(this.ctx.currentTime + 0.3);
+          }
+        };
+
+        const speak = (text) => {
+          if ('speechSynthesis' in window) {
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.lang = 'zh-TW';
+            msg.rate = 0.9;
+            window.speechSynthesis.speak(msg);
+          }
+        };
+
+        const TileIcon = ({ type }) => {
+          switch (type) {
+            case 'Home': return <Icons.Home className="text-yellow-500 w-4 h-4" />;
+            case 'Scroll': return <Icons.Scroll className="text-purple-400 w-4 h-4" />;
+            case 'AlertCircle': return <Icons.AlertCircle className="text-gray-400 w-4 h-4" />;
+            case 'Sword': return <Icons.Sword className="text-red-500 w-4 h-4" />;
+            case 'Map': return <Icons.Map className="text-blue-400 w-4 h-4" />;
+            case 'Skull': return <Icons.Skull className="text-black w-4 h-4" />;
+            default: return <Icons.Map className="text-stone-700 w-4 h-4" />;
+          }
+        };
+
+        function App() {
+          const [tiles, setTiles] = useState(TILE_DATA);
+          const [players, setPlayers] = useState([
+            { id: 0, name: "聶隱娘", money: 1500, position: 0, color: "bg-red-600", isBot: false, skipTurn: 0 },
+            { id: 1, name: "田季安", money: 1500, position: 0, color: "bg-amber-600", isBot: true, skipTurn: 0 }
+          ]);
+          const [currentPlayerIdx, setCurrentPlayerIdx] = useState(0);
+          const [diceValue, setDiceValue] = useState(1);
+          const [isRolling, setIsRolling] = useState(false);
+          const [moving, setMoving] = useState(false);
+          const [logs, setLogs] = useState(["大唐貞元年間，魏博風雲突變。刺客之爭，就此展開。"]);
+          const [showModal, setShowModal] = useState(null);
+          const [isMusicOn, setIsMusicOn] = useState(false);
+
+          const logEndRef = useRef(null);
+          useEffect(() => logEndRef.current?.scrollIntoView({ behavior: "smooth" }), [logs]);
+
+          const toggleMusic = () => {
+            if (isMusicOn) audioSystem.stopBGM();
+            else audioSystem.playBGM();
+            setIsMusicOn(!isMusicOn);
+          };
+
+          const getGridStyle = (id) => {
+            if (id <= 4) return { gridRow: 1, gridColumn: id + 1 };
+            if (id <= 7) return { gridRow: id - 3, gridColumn: 5 };
+            if (id <= 11) return { gridRow: 5, gridColumn: 5 - (id - 8) };
+            if (id <= 14) return { gridRow: 5 - (id - 11), gridColumn: 1 };
+            return {};
+          };
+
+          const rollDice = () => {
+            if (isRolling || moving || showModal) return;
+            const player = players[currentPlayerIdx];
+            if (player.skipTurn > 0) {
+              setPlayers(prev => prev.map((p, i) => i === currentPlayerIdx ? {...p, skipTurn: p.skipTurn - 1} : p));
+              setLogs(p => [...p, `${player.name} 被禁錮中，無法行動。`]);
+              setCurrentPlayerIdx((currentPlayerIdx + 1) % players.length);
+              return;
+            }
+
+            setIsRolling(true);
+            let count = 0;
+            const timer = setInterval(() => {
+              setDiceValue(Math.floor(Math.random() * 6) + 1);
+              audioSystem.playSound('dice');
+              count++;
+              if (count > 10) {
+                clearInterval(timer);
+                const final = Math.floor(Math.random() * 6) + 1;
+                setDiceValue(final);
+                setIsRolling(false);
+                moveSequence(final);
+              }
+            }, 80);
+          };
+
+          const moveSequence = async (steps) => {
+            setMoving(true);
+            let currentPos = players[currentPlayerIdx].position;
+            for (let i = 0; i < steps; i++) {
+              await new Promise(r => setTimeout(r, 250));
+              currentPos = (currentPos + 1) % BOARD_SIZE;
+              setPlayers(prev => prev.map((p, idx) => idx === currentPlayerIdx ? {...p, position: currentPos} : p));
+              if (currentPos === 0) {
+                setPlayers(prev => prev.map((p, idx) => idx === currentPlayerIdx ? {...p, money: p.money + 300} : p));
+                setLogs(p => [...p, "回到皇城受命，獲得賞金 300 兩。"]);
+                audioSystem.playSound('coin');
+              }
+            }
+            setMoving(false);
+            handleLand(currentPos);
+          };
+
+          const handleLand = (pos) => {
+            const tile = tiles[pos];
+            const player = players[currentPlayerIdx];
+            setLogs(p => [...p, `${player.name} 踏入 ${tile.name}。`]);
+
+            if (tile.type === 'PROPERTY') {
+              if (tile.owner === undefined || tile.owner === null) {
+                if (player.isBot) {
+                  if (player.money >= tile.price) executeBuy(pos);
+                  else nextTurn();
+                } else {
+                  setShowModal({
+                    title: "暗樁建立",
+                    message: `此處環境隱蔽，是否花費 ${tile.price} 兩在此建立情報據點？`,
+                    onConfirm: () => { executeBuy(pos); setShowModal(null); },
+                    onCancel: () => { nextTurn(); setShowModal(null); }
+                  });
+                }
+              } else if (tile.owner !== player.id) {
+                const rent = tile.rent;
+                audioSystem.playSound('coin');
+                setPlayers(prev => prev.map((p, i) => {
+                  if (i === currentPlayerIdx) return {...p, money: p.money - rent};
+                  if (i === tile.owner) return {...p, money: p.money + rent};
+                  return p;
+                }));
+                setLogs(p => [...p, `被對手伏擊，損失 ${rent} 兩。`]);
+                if (player.money - rent <= 0) {
+                  setShowModal({ title: "勝負已定", message: `${player.name} 氣絕敗北，江湖再無此人。`, onConfirm: () => window.location.reload() });
+                } else {
+                  nextTurn();
+                }
+              } else {
+                nextTurn();
+              }
+            } else if (tile.type === 'GO_TO_JAIL') {
+              speak("刺客行蹤敗露！");
+              setPlayers(prev => prev.map((p, i) => i === currentPlayerIdx ? {...p, position: 5, skipTurn: 2} : p));
+              nextTurn();
+            } else if (tile.type === 'TAX') {
+              setPlayers(prev => prev.map((p, i) => i === currentPlayerIdx ? {...p, money: p.money - 250} : p));
+              setLogs(p => [...p, "遭遇官方圍剿，上繳 250 兩賄賂。"]);
+              nextTurn();
+            } else if (tile.type === 'CHANCE') {
+              const luck = Math.random() > 0.5;
+              const amount = 200;
+              setPlayers(prev => prev.map((p, i) => i === currentPlayerIdx ? {...p, money: p.money + (luck ? amount : -amount)} : p));
+              setLogs(p => [...p, luck ? "密令達成：獲得額外獎金。" : "密令失敗：賠償情報費。"]);
+              nextTurn();
+            } else {
+              nextTurn();
+            }
+          };
+
+          const executeBuy = (pos) => {
+            audioSystem.playSound('coin');
+            setTiles(prev => prev.map((t, i) => i === pos ? {...t, owner: currentPlayerIdx} : t));
+            setPlayers(prev => prev.map((p, i) => i === currentPlayerIdx ? {...p, money: p.money - tiles[pos].price} : p));
+            nextTurn();
+          };
+
+          const nextTurn = () => setCurrentPlayerIdx(prev => (prev + 1) % players.length);
+
+          useEffect(() => {
+            if (players[currentPlayerIdx].isBot && !moving && !isRolling && !showModal) {
+              setTimeout(rollDice, 1200);
+            }
+          }, [currentPlayerIdx, moving, isRolling, showModal]);
+
+          return (
+            <div className="min-h-screen bg-[#1a0f0a] text-stone-200 p-4 flex flex-col items-center overflow-hidden relative">
+              <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#4a2c1d 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
+              
+              <div className="w-full max-w-[850px] flex flex-col gap-4 relative z-10">
+                
+                <div className="flex justify-between items-center bg-[#2d1b14] p-5 rounded-t-3xl border-b-4 border-amber-900 shadow-2xl">
+                  <div className="flex items-center gap-4">
+                    <Icons.Sword className="text-red-600 w-10 h-10 drop-shadow-[0_0_8px_rgba(220,38,38,0.5)]" />
+                    <div>
+                      <h1 className="text-3xl font-black tracking-[0.3em] text-stone-100">隱娘傳奇</h1>
+                      <span className="text-amber-700 text-xs font-bold tracking-widest">NIE YINNIANG: THE ASSASSIN</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                     <button onClick={toggleMusic} className={`p-4 rounded-xl transition-all ${isMusicOn ? 'bg-amber-800 shadow-[0_0_20px_rgba(146,64,14,0.6)]' : 'bg-stone-800'}`}>
+                       {isMusicOn ? <Icons.Volume2 className="animate-pulse text-amber-100 w-6 h-6" /> : <Icons.VolumeX className="text-stone-500 w-6 h-6" />}
+                     </button>
+                     <div className="flex gap-3">
+                       {players.map(p => (
+                         <div key={p.id} className={`p-2 px-4 rounded-lg border-2 ${currentPlayerIdx === p.id ? 'border-amber-500 bg-[#3d2a1d] scale-105' : 'border-stone-800 opacity-40'} transition-all`}>
+                            <div className="text-xs font-bold flex items-center gap-2 mb-1">
+                              <div className={`w-3 h-3 rounded-full ${p.color} border border-white/30`}></div>
+                              {p.name}
+                            </div>
+                            <div className="text-amber-500 font-mono text-sm flex items-center gap-1">
+                              <Icons.Coins className="w-3 h-3"/> {p.money}
+                            </div>
+                         </div>
+                       ))}
+                     </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col md:flex-row gap-4 h-full bg-[#2d1b14] p-4 rounded-b-3xl shadow-2xl border-x border-b border-amber-900/30">
+                  <div className="flex-1 bg-[#1a0f0a] p-3 rounded-2xl border-4 border-amber-900/50 grid grid-cols-5 grid-rows-5 gap-3 relative aspect-square">
+                    
+                    <div className="col-start-2 col-end-5 row-start-2 row-end-5 bg-[#25160f] rounded-xl flex flex-col items-center justify-center p-6 border border-amber-900/20 shadow-inner">
+                       <div className={`text-9xl font-black mb-8 transition-all duration-300 ${isRolling ? 'scale-110 rotate-12 text-red-600' : 'text-stone-800'}`}>
+                         {diceValue}
+                       </div>
+                       <button 
+                         onClick={rollDice}
+                         disabled={isRolling || moving || players[currentPlayerIdx].isBot}
+                         className="w-full py-4 bg-red-900 hover:bg-red-800 disabled:bg-stone-900 text-stone-100 font-black rounded-lg shadow-2xl transition-all active:scale-95 disabled:opacity-50 border-b-4 border-black"
+                       >
+                         {isRolling ? "運功中..." : "擲骰破局"}
+                       </button>
+                    </div>
+
+                    {tiles.map((tile, i) => (
+                      <div 
+                        key={tile.id}
+                        style={{ ...getGridStyle(tile.id), animationDelay: `${i * 60}ms` }}
+                        className={`tile-pop relative border border-[#3d2a1d] flex flex-col items-center justify-center rounded-lg transition-all duration-500 overflow-hidden
+                          ${tile.type === 'PROPERTY' ? 'bg-[#25160f]' : 'bg-[#150d0a]'}
+                          ${tile.owner === 0 ? 'ring-2 ring-inset ring-red-600 bg-red-950/40' : ''}
+                          ${tile.owner === 1 ? 'ring-2 ring-inset ring-amber-600 bg-amber-950/40' : ''}
+                        `}
+                      >
+                        <div className="text-[10px] font-bold text-stone-500 mb-1 px-1 text-center leading-tight">{tile.name}</div>
+                        <div className="scale-75 mb-1"><TileIcon type={tile.iconType} /></div>
+                        {tile.type === 'PROPERTY' && tile.owner === undefined && <div className="text-[9px] text-amber-900 font-bold">${tile.price}</div>}
+
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          {players.map(p => p.position === tile.id && (
+                            <div 
+                              key={p.id} 
+                              className={`w-7 h-7 rounded-full border-2 border-white shadow-[0_0_15px_rgba(0,0,0,0.5)] ${p.color} transition-all duration-300 animate-bounce z-20 flex items-center justify-center`}
+                              style={{ transform: p.id === 1 ? 'translate(6px, 6px)' : 'translate(-6px, -6px)' }}
+                            >
+                              <Icons.User className="w-4 h-4 text-white/70" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="w-full md:w-56 bg-[#150d0a] p-4 rounded-2xl border border-amber-900/50 flex flex-col h-[450px]">
+                    <h2 className="text-xs font-bold text-amber-700 mb-3 flex items-center gap-2 border-b border-amber-900/30 pb-2">
+                      <Icons.Scroll className="w-4 h-4"/> 魏博風聞錄
+                    </h2>
+                    <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                      {logs.map((log, i) => (
+                        <div key={i} className="text-[11px] text-stone-400 animate-in slide-in-from-right-2 fade-in duration-300 border-l-2 border-red-900/50 pl-2 leading-relaxed">
+                          {log}
+                        </div>
+                      ))}
+                      <div ref={logEndRef} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {showModal && (
+                <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-50 p-6">
+                  <div className="bg-[#2d1b14] border-4 border-amber-700 p-8 rounded-none max-w-sm w-full shadow-[0_0_80px_rgba(146,64,14,0.4)] animate-pop relative">
+                    <div className="absolute -top-4 -left-4 w-12 h-12 border-t-4 border-l-4 border-amber-500"></div>
+                    <div className="absolute -bottom-4 -right-4 w-12 h-12 border-b-4 border-r-4 border-amber-500"></div>
+                    
+                    <h3 className="text-2xl font-black text-amber-500 mb-4 tracking-widest border-b border-amber-900 pb-2">{showModal.title}</h3>
+                    <p className="text-stone-300 text-lg mb-8 leading-relaxed font-light italic">「{showModal.message}」</p>
+                    <div className="flex gap-3">
+                      {showModal.onCancel && (
+                        <button onClick={showModal.onCancel} className="flex-1 py-4 bg-stone-900 hover:bg-stone-800 text-stone-400 font-bold transition-all border border-stone-800">暫且退讓</button>
+                      )}
+                      <button onClick={showModal.onConfirm} className="flex-1 py-4 bg-red-900 hover:bg-red-800 text-white font-black shadow-lg shadow-red-950/40 transition-all active:scale-95 border-b-4 border-black">果斷行動</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
